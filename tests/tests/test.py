@@ -1,0 +1,20 @@
+from
+
+cart = Cart(roadmap)
+cart.add_item(  11)
+cart.add_item(  11)
+cart.add_item(  11)
+cart.add_item(  11)
+cart.add_item( 173)
+cart.add_item( 173)
+cart.drop_item( 11)
+print( cart.content() )
+cart.confirm()
+
+cart.add_item(  12)
+cart.add_item(  13)
+cart.drop_item( 13)
+cart.drop_item( 14)
+cart.add_item(  174)
+print( cart.content())
+cart.confirm()
