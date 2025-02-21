@@ -1,140 +1,119 @@
 import telebot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 import os
+from prettytable import PrettyTable
+
+from cart import Cart
+from roadmap import RoadMap
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+TEMP = os.getenv("TEMP")
 bot = telebot.TeleBot(TOKEN)
 
-restaurants = [
-    {"name": "Ресторан №1", "logo": "https://static.tildacdn.com/tild3937-6436-4532-b065-313439633661/E9heAba_vzEory05dBFc.jpg"},
-    {"name": "Ресторан №2", "logo": "https://teremok.ru/upload/iblock/947/sI2hxnNUDVM.jpg"},
-]
+roadmap = RoadMap()
+cart = Cart(roadmap)
 
-soups = [
-    {"name": "Борщ", "photo": "https://aif-s3.aif.ru/images/028/368/b4e33f182b30c9ce94fca1f35f4bd2a1.jpg", "price": 250},
-    {"name": "Солянка", "photo": "https://ferma-alpatevo.ru/image/cache/catalog/2/soup/186-auto_width_1000.jpg", "price": 300}
-]
+def send_list(bot,from_user,lst,header=[], top=[]):
+    table = PrettyTable()
+    if header: table.field_names = header
+    table.add_rows(lst)
+    bot.send_message(from_user.id,f'<pre>{top}\n{table}</pre>',parse_mode='HTML')
 
-current_index = 0
-current_soup_index = 0
-order = {"items": [], "total_price": 0}
+@bot.message_handler(commands=["reviews",'W'])
+def handle_reviews(message):
+    tags = message.text.split(' ')
+    if len(tags) >= 1 :
+        restaurants_id = int(tags[1])
+        send_list(bot, message.from_user, roadmap.all_reviews(restaurants_id),
+                  ["Дата", 'Оценка','Отзыв','Автор'],f"Отзывы о ресторане {restaurants_id }" )
+    else:
+        bot.send_message(message.from_user.id, f'Нераспознаны параметры ресторана')
 
+@bot.message_handler(commands=["review",'V'])
+def handle_review(message):
+    tags = message.text.split(' ')
+    if len(tags) >= 3 :
+        order_id = int(tags[1])
+        rate= int(tags[2])
+        if len(tags)>= 4: text = ' '.join(tags[3:])
+        else: text=''
+        roadmap.add_review(order_id,rate,text)
+    else:
+        bot.send_message(message.from_user.id, f'Нераспознаны параметры отзыва')
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    username = message.from_user.first_name
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    start_button = KeyboardButton("Старт")
-    keyboard.add(start_button)
-    bot.send_message(message.chat.id, "Нажмите 'Старт', чтобы начать", reply_markup=keyboard)
+@bot.message_handler(commands=["payment",'P'])
+def handle_payment(message):
+    tags = message.text.split(' ')
+    if len(tags) > 1 and tags[1] in ['cash','online']:
+        cart.set_payment(tags[1])
+        desc = f"Установлен метод платежа {cart.payment_method}"
+        bot.send_message(message.from_user.id, f'<pre>{desc}</pre>', parse_mode='HTML')
+    else:
+        bot.send_message(message.from_user.id, f'Нераспознана команда платежа')
 
+@bot.message_handler(commands=["history",'H'])
+def handle_history(message):
+    send_list(bot, message.from_user, cart.load_history(roadmap.user_id), ["ID", 'Описание'], roadmap.description())
 
-@bot.message_handler(func=lambda message: message.text == "Старт")
-def handle_start(message):
-    username = message.from_user.first_name
-    text = f"Привет, {username}! Я бот, который поможет тебе заказать еду."
-    inline_keyboard = InlineKeyboardMarkup()
-    btn_restaurant = InlineKeyboardButton("Выбрать ресторан", callback_data="choose_restaurant")
-    btn_profile = InlineKeyboardButton("Личный кабинет", callback_data="profile")
-    inline_keyboard.add(btn_restaurant, btn_profile)
-    bot.send_message(message.chat.id, text, reply_markup=inline_keyboard)
+@bot.message_handler(commands=["load",'L'])
+def handle_repeat(message):
+    tags = message.text.split(' ')
+    if len(tags) > 1:
+        t = int(tags[1])
+        cart.load_order(t)
 
+@bot.message_handler(commands=["drop",'D'])
+def handle_drop(message):
+    tags = message.text.split(' ')
+    if len(tags) > 1:
+        t = int(tags[1])
+        cart.drop_item(t)
+        bot.send_message(message.from_user.id, f'<pre>{cart.item_state(t)}</pre>', parse_mode='HTML')
+    else:
+        bot.send_message(message.from_user.id,f"Формат команды: '/drop <id блюда>' ")
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_inline_buttons(call):
-    global current_index, current_soup_index, order
-    bot.delete_message(call.message.chat.id, call.message.message_id)
+@bot.message_handler(commands=["cart",'C'])
+def handle_cart(message):
+    desc = roadmap.description() +'\nПлатёж: ' + cart.payment_method
+    if len(cart.items) > 0 :
+        send_list(bot, message.from_user, cart.content(), ["ID", 'Блюдо', 'Цена', 'Количество'], desc)
+    else:
+        bot.send_message(message.from_user.id,f"Корзина пуста ")
 
-    if call.data == "choose_restaurant":
-        current_index = 0
-        send_restaurant_info(call.message.chat.id)
-    elif call.data == "profile":
-        bot.send_message(call.message.chat.id, "Личный кабинет в разработке.")
-    elif call.data == "prev_restaurant":
-        current_index = (current_index - 1) % len(restaurants)
-        send_restaurant_info(call.message.chat.id)
-    elif call.data == "next_restaurant":
-        current_index = (current_index + 1) % len(restaurants)
-        send_restaurant_info(call.message.chat.id)
-    elif call.data == "select_restaurant":
-        send_menu(call.message.chat.id)
-    elif call.data == "soups":
-        current_soup_index = 0
-        send_soup_info(call.message.chat.id)
-    elif call.data == "prev_soup":
-        current_soup_index = (current_soup_index - 1) % len(soups)
-        send_soup_info(call.message.chat.id)
-    elif call.data == "next_soup":
-        current_soup_index = (current_soup_index + 1) % len(soups)
-        send_soup_info(call.message.chat.id)
-    elif call.data == "add_soup":
-        order["items"].append(soups[current_soup_index])
-        order["total_price"] += soups[current_soup_index]["price"]
-        send_soup_info(call.message.chat.id)
-    elif call.data == "cart":
-        send_cart(call.message.chat.id)
-    elif call.data == "back_to_start":
-        handle_start(call.message)
+@bot.message_handler(commands=["confirm",'F'])
+def handle_confirm(message):
+    if len(cart.items) > 0 :
+        cart.confirm()
+        bot.send_message(message.from_user.id,f'<pre>Заказ сохранен</pre>',parse_mode='HTML')
+    else:
+        bot.send_message(message.from_user.id,f"Корзина пуста ")
 
+@bot.message_handler(commands=["add",'A'])
+def handle_add(message):
+    tags = message.text.split(' ')
+    if len(tags)>1 :
+        t = int(tags[1])
+        cart.add_item(t)
+        bot.send_message(message.from_user.id,f'<pre>{cart.item_state(t)}</pre>',parse_mode='HTML')
+    else:
+        bot.send_message(message.from_user.id,f"Формат команды: '/add <id блюда>' ")
 
-def send_restaurant_info(chat_id):
-    inline_keyboard = InlineKeyboardMarkup()
-    btn_prev = InlineKeyboardButton("Пред.", callback_data="prev_restaurant")
-    btn_next = InlineKeyboardButton("След.", callback_data="next_restaurant")
-    btn_select = InlineKeyboardButton("Выбрать", callback_data="select_restaurant")
-    btn_back = InlineKeyboardButton("Назад", callback_data="back_to_start")
-    inline_keyboard.row(btn_prev, btn_next)
-    inline_keyboard.row(btn_select)
-    inline_keyboard.row(btn_back)
-    bot.send_photo(chat_id, restaurants[current_index]["logo"], caption=restaurants[current_index]["name"],
-                   reply_markup=inline_keyboard)
+@bot.message_handler(commands=["restaurant",'R'])
+def handle_restaurant(message):
+    tags = message.text.split(' ')
+    if len(tags)>1 :   t = int(tags[1])
+    if not t : t = roadmap.restaurant_id
+    if t:   roadmap.select_resturant(t)
+    send_list(bot,message.from_user,roadmap.get_categories(), ["ID", 'Категория меню'],roadmap.description() )
 
-
-def send_menu(chat_id):
-    inline_keyboard = InlineKeyboardMarkup()
-    btn_soups = InlineKeyboardButton("Супы", callback_data="soups")
-    btn_salads = InlineKeyboardButton("Салаты", callback_data="salads")
-    btn_hot_dishes = InlineKeyboardButton("Горячие блюда", callback_data="hot_dishes")
-    btn_drinks = InlineKeyboardButton("Напитки", callback_data="drinks")
-    btn_back = InlineKeyboardButton("Назад", callback_data="choose_restaurant")
-    inline_keyboard.row(btn_soups, btn_salads)
-    inline_keyboard.row(btn_hot_dishes, btn_drinks)
-    inline_keyboard.row(btn_back)
-    bot.send_photo(chat_id, restaurants[current_index]["logo"], caption=restaurants[current_index]["name"],
-                   reply_markup=inline_keyboard)
-
-
-def send_soup_info(chat_id):
-    inline_keyboard = InlineKeyboardMarkup()
-    btn_prev = InlineKeyboardButton("Пред.", callback_data="prev_soup")
-    btn_next = InlineKeyboardButton("След.", callback_data="next_soup")
-    btn_add = InlineKeyboardButton("Добавить в заказ", callback_data="add_soup")
-    btn_cart = InlineKeyboardButton("Корзина", callback_data="cart")
-    btn_back = InlineKeyboardButton("Назад", callback_data="select_restaurant")
-    inline_keyboard.row(btn_prev, btn_next)
-    inline_keyboard.row(btn_add)
-    inline_keyboard.row(btn_cart, btn_back)
-    bot.send_photo(chat_id, soups[current_soup_index]["photo"],
-                   caption=f"{soups[current_soup_index]['name']} - {soups[current_soup_index]['price']} руб.",
-                   reply_markup=inline_keyboard)
-
-
-def send_cart(chat_id):
-    if not order["items"]:
-        bot.send_message(chat_id, "Ваша корзина пуста.")
-        return
-    text = "Ваш заказ:\n"
-    for item in order["items"]:
-        text += f"{item['name']} - {item['price']} руб.\n"
-    text += f"\nОбщая стоимость: {order['total_price']} руб."
-    inline_keyboard = InlineKeyboardMarkup()
-    btn_confirm = InlineKeyboardButton("Подтвердить заказ", callback_data="confirm_order")
-    btn_back = InlineKeyboardButton("Назад", callback_data="soups")
-    inline_keyboard.row(btn_confirm)
-    inline_keyboard.row(btn_back)
-    bot.send_message(chat_id, text, reply_markup=inline_keyboard)
-
+@bot.message_handler(commands=["section",'C'])
+def handle_section(message):
+    # username = message.from_user.first_name
+    tags = message.text.split(' ')
+    if len(tags)>1 :   t = int(tags[1])
+    if not t : t = roadmap.category_id
+    if t:   roadmap.select_category(t)
+    send_list(bot,message.from_user,roadmap.get_dishes(), ["ID", "Блюда",'Цена'],roadmap.description() )
 
 bot.polling(none_stop=True)

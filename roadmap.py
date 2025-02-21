@@ -39,20 +39,21 @@ class RoadMap:
         conn1 = sqlite3.connect("db/food_orders.sqlite")
         conn1.execute("PRAGMA journal_mode=WAL")
 
-        with cursor = conn.cursor()
-            cursor.execute(ask_for_review_query,(order_id,))
-            rows=cursor.fetchall()
-            cursor.close()
-            if rows:
-                cursor1 = conn1.cursor()
-                try:
-                    r_id = dict(rows[0])['restaurant_id']
-                    print((self.user_id, r_id,order_id,rate,text, ))
-                    cursor1.execute(insert_review_query,(self.user_id, r_id,order_id,rate,text, ))
-                    conn1.commit()
-                finally:
-                    cursor1.close()
-            conn1.close()
+        cursor = conn.cursor()
+        print(rate,text,order_id)
+        cursor.execute(ask_for_review_query,(order_id,))
+        rows=cursor.fetchall()
+        cursor.close()
+        if rows:
+            cursor1 = conn1.cursor()
+            try:
+                r_id = dict(rows[0])['restaurant_id']
+                print((self.user_id, r_id,order_id,rate,text, ))
+                cursor1.execute(insert_review_query,(self.user_id, r_id,order_id,rate,text, ))
+                conn1.commit()
+            finally:
+                cursor1.close()
+        conn1.close()
 
     def get_categories(self):
         cursor = conn.cursor()
