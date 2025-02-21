@@ -1,9 +1,8 @@
 import telebot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 import os
 from prettytable import PrettyTable
-# conn = sqlite3.connect("db/food_orders.sqlite",check_same_thread=False)
+
 from cart import Cart
 from roadmap import RoadMap
 
@@ -20,6 +19,28 @@ def send_list(bot,from_user,lst,header=[], top=[]):
     if header: table.field_names = header
     table.add_rows(lst)
     bot.send_message(from_user.id,f'<pre>{top}\n{table}</pre>',parse_mode='HTML')
+
+@bot.message_handler(commands=["reviews",'W'])
+def handle_reviews(message):
+    tags = message.text.split(' ')
+    if len(tags) >= 1 :
+        restaurants_id = int(tags[1])
+        send_list(bot, message.from_user, roadmap.all_reviews(restaurants_id),
+                  ["Дата", 'Оценка','Отзыв','Автор'],f"Отзывы о ресторане {restaurants_id }" )
+    else:
+        bot.send_message(message.from_user.id, f'Нераспознаны параметры ресторана')
+
+@bot.message_handler(commands=["review",'V'])
+def handle_review(message):
+    tags = message.text.split(' ')
+    if len(tags) >= 3 :
+        order_id = int(tags[1])
+        rate= int(tags[2])
+        if len(tags)>= 4: text = ' '.join(tags[3:])
+        else: text=''
+        roadmap.add_review(order_id,rate,text)
+    else:
+        bot.send_message(message.from_user.id, f'Нераспознаны параметры отзыва')
 
 @bot.message_handler(commands=["payment",'P'])
 def handle_payment(message):

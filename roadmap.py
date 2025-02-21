@@ -1,17 +1,24 @@
-# from connect import conn
-#
-# select_categories_query = '''
-# SELECT id,name FROM categories WHERE restaurant_id=?
-# '''
-# select_dishes_query = '''
-# SELECT id,name,price FROM dishes WHERE category_id=?
-# '''
-#
-# insert_review_query = '''
-# INSERT INTO reviews (user_id, restaurant_id, order_id,  rating, comment)
-# VALUES (?,?,?,?,?)
-# '''
+from connect import conn
 
+select_categories_query = '''
+SELECT id,name FROM categories WHERE restaurant_id=?
+'''
+select_dishes_query = '''
+SELECT id,name,price FROM dishes WHERE category_id=?
+'''
+ask_for_review_query = '''
+select restaurant_id  from orders
+ where  id = ? 
+'''
+insert_review_query = '''
+insert into reviews (user_id,restaurant_id,order_id,rating,comment) 
+values(?,?,?,?,?) 
+'''
+all_reviews_query = '''
+ select date(v.created_at) , rating,comment,u.username   from reviews v  join users u on user_id = u.id 
+  where restaurant_id = ?
+  order by 1 desc
+'''
 
 class RoadMap:
     def __init__(self,u_id=1,r_id=1):
@@ -19,12 +26,34 @@ class RoadMap:
         self.restaurant_id = r_id
         self.category_id =  None
         self.dish_id = None
-    # def add_review(self,order_id,rate,text):
-    #     cursor = conn.cursor()
-    #     cursor.
-    #     cursor.execute(insert_review_query, (self.user_id,self.restaurant_id,order_id,text ))
-    #     rows = cursor.fetchall()
-    #     cursor.close()
+
+    def all_reviews(self,restaurant_id):
+        cursor = conn.cursor()
+        cursor.execute(all_reviews_query,(restaurant_id,))
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
+
+    def add_review(self,order_id,rate,text):
+        import sqlite3
+        conn1 = sqlite3.connect("db/food_orders.sqlite")
+        conn1.execute("PRAGMA journal_mode=WAL")
+
+        cursor = conn.cursor()
+        print(rate,text,order_id)
+        cursor.execute(ask_for_review_query,(order_id,))
+        rows=cursor.fetchall()
+        cursor.close()
+        if rows:
+            cursor1 = conn1.cursor()
+            try:
+                r_id = dict(rows[0])['restaurant_id']
+                print((self.user_id, r_id,order_id,rate,text, ))
+                cursor1.execute(insert_review_query,(self.user_id, r_id,order_id,rate,text, ))
+                conn1.commit()
+            finally:
+                cursor1.close()
+        conn1.close()
 
     def get_categories(self):
         cursor = conn.cursor()
@@ -40,7 +69,7 @@ class RoadMap:
         cursor.close()
         return rows
 
-    def select_resturant(self,r_id):
+    def select_restaurant(self,r_id):
         self.restaurant_id = r_id
         self.category_id = None
         return self.get_categories()
