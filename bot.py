@@ -23,23 +23,23 @@ def send_list(bot,from_user,lst,header=[], top=[]):
 @bot.message_handler(commands=["reviews",'W'])
 def handle_reviews(message):
     tags = message.text.split(' ')
-    if len(tags) >= 1 :
+    try:
         restaurants_id = int(tags[1])
         send_list(bot, message.from_user, roadmap.all_reviews(restaurants_id),
                   ["Дата", 'Оценка','Отзыв','Автор'],f"Отзывы о ресторане {restaurants_id }" )
-    else:
+    except:
         bot.send_message(message.from_user.id, f'Нераспознаны параметры ресторана')
 
 @bot.message_handler(commands=["review",'V'])
 def handle_review(message):
     tags = message.text.split(' ')
-    if len(tags) >= 3 :
+    try:
         order_id = int(tags[1])
         rate= int(tags[2])
         if len(tags)>= 4: text = ' '.join(tags[3:])
         else: text=''
         roadmap.add_review(order_id,rate,text)
-    else:
+    except:
         bot.send_message(message.from_user.id, f'Нераспознаны параметры отзыва')
 
 @bot.message_handler(commands=["payment",'P'])
@@ -59,19 +59,20 @@ def handle_history(message):
 @bot.message_handler(commands=["load",'L'])
 def handle_repeat(message):
     tags = message.text.split(' ')
-    if len(tags) > 1:
+    try:
         t = int(tags[1])
         cart.load_order(t)
+    except: bot.send_message(message.from_user.id,'Нераспознан номер заказа для поаторения')
 
 @bot.message_handler(commands=["drop",'D'])
 def handle_drop(message):
     tags = message.text.split(' ')
-    if len(tags) > 1:
+    try:
         t = int(tags[1])
         cart.drop_item(t)
         bot.send_message(message.from_user.id, f'<pre>{cart.item_state(t)}</pre>', parse_mode='HTML')
-    else:
-        bot.send_message(message.from_user.id,f"Формат команды: '/drop <id блюда>' ")
+    except:
+        bot.send_message(message.from_user.id,f"Нераспознан номер блюда для удаления' ")
 
 @bot.message_handler(commands=["cart",'C'])
 def handle_cart(message):
@@ -92,11 +93,11 @@ def handle_confirm(message):
 @bot.message_handler(commands=["add",'A'])
 def handle_add(message):
     tags = message.text.split(' ')
-    if len(tags)>1 :
+    try :
         t = int(tags[1])
         cart.add_item(t)
         bot.send_message(message.from_user.id,f'<pre>{cart.item_state(t)}</pre>',parse_mode='HTML')
-    else:
+    except:
         bot.send_message(message.from_user.id,f"Формат команды: '/add <id блюда>' ")
 
 @bot.message_handler(commands=["restaurant",'R'])
