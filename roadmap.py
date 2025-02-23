@@ -1,4 +1,4 @@
-from connect import conn
+from connect import conn,conn_to_write
 
 select_categories_query = '''
 SELECT id,name FROM categories WHERE restaurant_id=?
@@ -35,25 +35,22 @@ class RoadMap:
         return rows
 
     def add_review(self,order_id,rate,text):
-        import sqlite3
-        conn1 = sqlite3.connect("db/food_orders.sqlite")
-        conn1.execute("PRAGMA journal_mode=WAL")
-
         cursor = conn.cursor()
         print(rate,text,order_id)
         cursor.execute(ask_for_review_query,(order_id,))
         rows=cursor.fetchall()
         cursor.close()
         if rows:
-            cursor1 = conn1.cursor()
+            wconn = conn_to_write()
+            wcursor = wconn.cursor()
             try:
                 r_id = dict(rows[0])['restaurant_id']
                 print((self.user_id, r_id,order_id,rate,text, ))
-                cursor1.execute(insert_review_query,(self.user_id, r_id,order_id,rate,text, ))
-                conn1.commit()
+                wcursor.execute(insert_review_query,(self.user_id, r_id,order_id,rate,text, ))
+                wconn.commit()
             finally:
-                cursor1.close()
-        conn1.close()
+                wcursor.close()
+                wconn.close()
 
     def get_categories(self):
         cursor = conn.cursor()

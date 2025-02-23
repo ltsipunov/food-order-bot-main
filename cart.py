@@ -1,4 +1,4 @@
-from connect import conn
+from connect import conn,conn_to_write
 
 insert_order_query = '''
 INSERT INTO orders (user_id, restaurant_id, status, payment_method, total_cost)
@@ -93,13 +93,16 @@ class Cart:
     def confirm(self):
         self.total_cost = sum(item['price'] * item['quantity'] for item in self.items)
 
-        cursor = conn.cursor()
-        cursor.execute(insert_order_query, (
+        wconn=conn_to_write()
+        wcursor =wconn.cursor()
+        wcursor.execute(insert_order_query, (
         self.user_id, self.restaurant_id, self.status, self.payment_method, self.total_cost))
-        last_order_id = cursor.lastrowid
+        last_order_id = wcursor.lastrowid
         for item in self.items:
-            cursor.execute(insert_order_item_query, (
+            wcursor.execute(insert_order_item_query, (
             last_order_id, item['id'], item['quantity'], item['price'], item['quantity'] * item['price']))
-        conn.commit()
+        wconn.commit()
+        wcursor.close()
+        wconn.close()
 
         self.reset()
